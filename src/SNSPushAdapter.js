@@ -214,7 +214,7 @@ SNSPushAdapter.prototype.sendSNSPayload = function (arn, payload, device) {
         
         var params = {
             Attributes: {
-                Enabled: true,
+                Enabled: "true",
             },
             EndpointArn: arn
         };
