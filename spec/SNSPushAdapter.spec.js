@@ -61,7 +61,7 @@ describe('SNSPushAdapter', () => {
 
     it('can send push notifications', (done) => {
         // Mock SNS sender
-        var snsSender = jasmine.createSpyObj('sns', ['createPlatformEndpoint', 'publish']);
+        var snsSender = jasmine.createSpyObj('sns', ['createPlatformEndpoint', 'publish', 'setEndpointAttributes']);
         snsPushAdapter.sns = snsSender;
 
         // Mock android ios senders
@@ -196,11 +196,16 @@ describe('SNSPushAdapter', () => {
 
     it('can send SNS Payload', (done) => {
         // Mock out Amazon SNS token exchange
-        var snsSender = jasmine.createSpyObj('sns', ['publish'])
-        snsSender.publish.and.callFake(function (object, callback) {
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'setEndpointAttributes'])
+       
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
             callback(null, '123');
         });
-
+        
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //   callback(null, '123');
+        //});
+        
         snsPushAdapter.sns = snsSender;
 
         // Mock installations
@@ -213,8 +218,10 @@ describe('SNSPushAdapter', () => {
 
         var callback = jasmine.createSpy();
         promise.then(function (response) {
-            expect(snsSender.publish).toHaveBeenCalled();
-            var args = snsSender.publish.calls.first().args;
+            expect(snsSender.setEndpointAttributes).toHaveBeenCalled();
+            var args = snsSender.setEndpointAttributes.calls.first().args;
+            //expect(snsSender.publish).toHaveBeenCalled();
+            //var args = snsSender.publish.calls.first().args;
             expect(args[0].MessageStructure).toEqual("json");
             expect(args[0].TargetArn).toEqual("123");
             expect(args[0].Message).toEqual('{"test":"hello"}');
@@ -225,7 +232,7 @@ describe('SNSPushAdapter', () => {
 
     it('errors exchanging ARNS', (done) => {
         // Mock out Amazon SNS token exchange
-        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint']);
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint', 'setEndpointAttributes']);
 
         snsSender.createPlatformEndpoint.and.callFake(function (object, callback) {
             callback("error", {});
@@ -239,10 +246,15 @@ describe('SNSPushAdapter', () => {
 
     it('errors sending SNS Payload to Android and iOS', (done) => {
 
-        var snsSender = jasmine.createSpyObj('sns', ['publish'])
-        snsSender.publish.and.callFake(function (object, callback) {
-            callback({'stack': 'abc'}, {});
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'setEndpointAttributes'])
+        
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
+            callback(null, '123');
         });
+        
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //    callback({'stack': 'abc'}, {});
+        //});
 
         snsPushAdapter.sns = snsSender;
 
@@ -256,7 +268,8 @@ describe('SNSPushAdapter', () => {
 
         var callback = jasmine.createSpy();
         promise.catch(function (response) {
-            expect(snsSender.publish).toHaveBeenCalled();
+            expect(snsSender.setEndpointAttributes).toHaveBeenCalled();
+            //expect(snsSender.publish).toHaveBeenCalled();
             expect(response.transmitted).toBeFalsy();
             expect(response.response).toEqual('abc');
             done();
@@ -265,15 +278,19 @@ describe('SNSPushAdapter', () => {
 
     it('can send SNS Payload to Android and iOS', (done) => {
         // Mock out Amazon SNS token exchange
-        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint']);
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint','setEndpointAttributes']);
 
         snsSender.createPlatformEndpoint.and.callFake(function (object, callback) {
             callback(null, {'EndpointArn': 'ARN'});
         });
 
-        snsSender.publish.and.callFake(function (object, callback) {
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
             callback(null, '123');
         });
+        
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //    callback(null, '123');
+        //});
 
         snsPushAdapter.sns = snsSender;
 
@@ -292,22 +309,28 @@ describe('SNSPushAdapter', () => {
         var promise = snsPushAdapter.send({"test": "hello"}, installations);
 
         promise.then(function () {
-            expect(snsSender.publish).toHaveBeenCalled();
-            expect(snsSender.publish.calls.count()).toEqual(2);
+            expect(snsSender.setEndpointAttributes).toHaveBeenCalled();
+            expect(snsSender.setEndpointAttributes.calls.count()).toEqual(2);
+            //expect(snsSender.publish).toHaveBeenCalled();
+            //expect(snsSender.publish.calls.count()).toEqual(2);
             done();
         });
     });
 
     it('can send to APNS with known identifier', (done) => {
-        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint']);
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint','setEndpointAttributes']);
 
         snsSender.createPlatformEndpoint.and.callFake(function (object, callback) {
             callback(null, {'EndpointArn': 'ARN'});
         });
 
-        snsSender.publish.and.callFake(function (object, callback) {
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
             callback(null, '123');
         });
+        
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //    callback(null, '123');
+        //});
 
         snsPushAdapter.sns = snsSender;
 
@@ -315,22 +338,27 @@ describe('SNSPushAdapter', () => {
         expect(promises.length).toEqual(1);
 
         Promise.all(promises).then(function ()  {
-            expect(snsSender.publish).toHaveBeenCalled();
+            expect(snsSender.setEndpointAttributes).toHaveBeenCalled();
+            //expect(snsSender.publish).toHaveBeenCalled();
             done();
         });
 
     });
 
     it('can send to APNS with unknown identifier', (done) => {
-        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint']);
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint','setEndpointAttributes']);
 
         snsSender.createPlatformEndpoint.and.callFake(function (object, callback) {
             callback(null, {'EndpointArn': 'ARN'});
         });
 
-        snsSender.publish.and.callFake(function (object, callback) {
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
             callback(null, '123');
         });
+        
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //    callback(null, '123');
+        //});
 
         snsPushAdapter.sns = snsSender;
 
@@ -353,23 +381,28 @@ describe('SNSPushAdapter', () => {
 
         snsPushAdapter = new SNSPushAdapter(pushConfig);
 
-        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint']);
+        var snsSender = jasmine.createSpyObj('sns', ['publish', 'createPlatformEndpoint','setEndpointAttributes']);
 
         snsSender.createPlatformEndpoint.and.callFake(function (object, callback) {
             callback(null, {'EndpointArn': 'APNS_PROD_ID'});
         });
-
-        snsSender.publish.and.callFake(function (object, callback) {
+        
+        snsSender.setEndpointAttributes.and.callFake(function (params, callback) {
             callback(null, '123');
         });
+        //snsSender.publish.and.callFake(function (object, callback) {
+        //    callback(null, '123');
+        //});
 
         snsPushAdapter.sns = snsSender;
 
         var promises = snsPushAdapter.sendToAPNS({"test": "hello"}, [makeDevice("ios", "beta.parseplatform.myapp")]);
         expect(promises.length).toEqual(1);
         Promise.all(promises).then(function () {
-            expect(snsSender.publish).toHaveBeenCalled();
-            var args = snsSender.publish.calls.first().args[0];
+            expect(snsSender.setEndpointAttributes).toHaveBeenCalled();
+            var args = snsSender.setEndpointAttributes.calls.first().args[0];
+            //expect(snsSender.publish).toHaveBeenCalled();
+            //var args = snsSender.publish.calls.first().args[0];
             expect(args.Message).toEqual("{\"APNS_SANDBOX\":\"{}\"}");
             done();
         });

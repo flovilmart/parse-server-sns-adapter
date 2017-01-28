@@ -189,7 +189,6 @@ SNSPushAdapter.prototype.exchangeTokenPromise = function (device, platformARN) {
  * Send the Message, MessageStructure, and Target Amazon Resource Number (ARN) to SNS
  * @param arn Amazon Resource ID
  * @param payload JSON-encoded message
- * @param device Device info (used for returning push status)
  * @returns {Parse.Promise}
  */
 SNSPushAdapter.prototype.sendSNSPayload = function (arn, payload, device) {
@@ -199,6 +198,11 @@ SNSPushAdapter.prototype.sendSNSPayload = function (arn, payload, device) {
         MessageStructure: 'json',
         TargetArn: arn
     };
+    
+    if (device.deviceToken.startsWith("arn")) {
+        object.TargetArn = undefined;
+        object.TopicArn = device.deviceToken;
+    }
 
     return new Parse.Promise((resolve, reject) => {
         var response = {
@@ -207,24 +211,72 @@ SNSPushAdapter.prototype.sendSNSPayload = function (arn, payload, device) {
                 deviceToken: device.deviceToken.toString('hex')
             }
         };
+        
+        // publish to topic
+        if (object.TopicArn) {
+            return this.sns.publish(object, (err, data) => {
+                if (err != null) {
+                    log.error(LOG_PREFIX, "Error sending push " + err);
+                    response.transmitted = false;
+                    if (err.stack) {
+                        response.response = err.stack;
+                    }
+                    return reject(response);
+                }
 
-        this.sns.publish(object, (err, data) => {
+                if (data && data.MessageId) {
+                    log.verbose(LOG_PREFIX, "Successfully sent push to " + data.MessageId);
+                }
+
+                response.transmitted = true;
+                response.response = data;
+                resolve(response);
+            });
+        }
+        
+        /*
+         * Amazon SNS will set Endpoint to false when a notification service indicates to Amazon SNS 
+         * that the endpoint is invalid. We need to set it back to true
+        */
+        
+        var params = {
+            Attributes: {
+                Enabled: "true",
+            },
+            EndpointArn: arn
+        };
+        
+        this.sns.setEndpointAttributes(params, (err, data) => {
             if (err != null) {
-                log.error(LOG_PREFIX, "Error sending push " + err);
+                log.error(LOG_PREFIX, "Error enabling Endpoints " + err);
                 response.transmitted = false;
                 if (err.stack) {
                     response.response = err.stack;
                 }
                 return reject(response);
             }
+            
+            // send the push after re-enabling Endpoint
+            if (data) {
+                this.sns.publish(object, (err, data) => {
+                    if (err != null) {
+                        log.error(LOG_PREFIX, "Error sending push " + err);
+                        response.transmitted = false;
+                        if (err.stack) {
+                            response.response = err.stack;
+                        }
+                        return reject(response);
+                    }
 
-            if (data && data.MessageId) {
-                log.verbose(LOG_PREFIX, "Successfully sent push to " + data.MessageId);
+                    if (data && data.MessageId) {
+                        log.verbose(LOG_PREFIX, "Successfully sent push to " + data.MessageId);
+                    }
+
+                    response.transmitted = true;
+                    response.response = data;
+                    resolve(response);
+                });
             }
-
-            response.transmitted = true;
-            response.response = data;
-            resolve(response);
         });
     });
 }
@@ -234,6 +286,12 @@ SNSPushAdapter.prototype.sendSNSPayload = function (arn, payload, device) {
  */
 
 SNSPushAdapter.prototype.send = function (data, installations) {
+    if(installations.arn){
+        installations = installations.arn;
+        for (installation of installations){
+            installation.deviceToken = installation.topicArn;
+        }
+    }
     let deviceMap = utils.classifyInstallations(installations, this.availablePushTypes);
 
     let sendPromises = Object.keys(deviceMap).forEach((pushType) => {
